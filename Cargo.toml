@@ -2,6 +2,7 @@
 name = "pdf-scrub"
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-only"
 
 [[bin]]
 name = "pdf-scrub"
@@ -16,10 +17,12 @@ local = []
 
 [dependencies]
 base64 = "0.22.1"
+getfrompass = "0.2"
 reqwest = { version = "0.13.4", features = ["json"] }
 serde_json = "1.0.150"
 tempfile = "3.27.0"
 tokio = { version = "1.52.3", features = ["full"] }
+zeroize = "1.8.2"
 
 [dev-dependencies]
 tokio = { version = "1.52.3", features = ["macros", "rt"] }
