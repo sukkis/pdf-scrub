@@ -17,6 +17,7 @@ local = []
 
 [dependencies]
 base64 = "0.22.1"
+clap = { version = "4.6.1", features = ["derive"] }
 getfrompass = "0.2"
 reqwest = { version = "0.13.4", features = ["json"] }
 serde_json = "1.0.150"
