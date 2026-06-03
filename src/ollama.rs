@@ -1,7 +1,6 @@
 const ENDPOINT: &str = "http://localhost:11434/api/generate";
 const PROMPT: &str = "Extract the text from this document page as Markdown. \
-    Mark every person name you find with the tag [NAME: Firstname Lastname]. \
-    Do not substitute or remove anything else. Preserve all other content exactly.";
+    Preserve all content exactly.";
 
 pub async fn ask_ollama(image_bytes: &[u8], model: &str) -> Result<String, String> {
     use base64::{Engine as _, engine::general_purpose};

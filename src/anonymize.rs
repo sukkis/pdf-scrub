@@ -1,64 +1,37 @@
-pub fn anonymize(text: &str, owner_name: &str) -> String {
-    let owner_lower = owner_name.to_lowercase();
-    let owner_tokens: Vec<String> = owner_name
-        .split_whitespace()
-        .map(|t| t.to_lowercase())
-        .collect();
-
-    let mut result = String::new();
-    let mut unknown_names: Vec<String> = Vec::new();
-    let mut remaining = text;
-
-    while let Some(tag_start) = remaining.find("[NAME:") {
-        result.push_str(&remaining[..tag_start]);
-        remaining = &remaining[tag_start..];
-
-        match remaining.find(']') {
-            Some(tag_end) => {
-                let inner = remaining[6..tag_end].trim();
-                let replacement =
-                    replacement_for(inner, &owner_lower, &owner_tokens, &mut unknown_names);
-                result.push_str(&replacement);
-                remaining = &remaining[tag_end + 1..];
-            }
-            None => {
-                result.push_str(remaining);
-                remaining = "";
-            }
-        }
-    }
-
-    result.push_str(remaining);
-    result
+pub fn anonymize(text: &str, owner_firstname: &str, owner_lastname: &str) -> String {
+    let full_fn_ln = format!("{owner_firstname} {owner_lastname}");
+    let full_ln_fn = format!("{owner_lastname} {owner_firstname}");
+    let text = replace_ci(text, &full_fn_ln, "Omistaja");
+    let text = replace_ci(&text, &full_ln_fn, "Omistaja");
+    let text = replace_ci(&text, owner_firstname, "Omistaja?");
+    replace_ci(&text, owner_lastname, "Omistaja?")
 }
 
-fn replacement_for(
-    name: &str,
-    owner_lower: &str,
-    owner_tokens: &[String],
-    unknown_names: &mut Vec<String>,
-) -> String {
-    let name_lower = name.to_lowercase();
-
-    if name_lower == owner_lower {
-        return "Omistaja".to_string();
+// Case-insensitive substring replacement. Assumes that for all characters in
+// `pattern`, uppercase and lowercase forms have identical UTF-8 byte lengths
+// (true for ASCII and Finnish letters ä, ö, å).
+fn replace_ci(text: &str, pattern: &str, replacement: &str) -> String {
+    if pattern.is_empty() {
+        return text.to_string();
     }
+    let pattern_lower = pattern.to_lowercase();
+    let text_lower = text.to_lowercase();
+    let pat_len = pattern_lower.len();
+    let mut result = String::new();
+    let mut pos = 0;
 
-    let name_tokens: Vec<String> = name.split_whitespace().map(|t| t.to_lowercase()).collect();
-
-    if owner_tokens.iter().any(|t| name_tokens.contains(t)) {
-        return "Omistaja?".to_string();
+    while pos + pat_len <= text_lower.len() {
+        if text_lower[pos..].starts_with(&pattern_lower) {
+            result.push_str(replacement);
+            pos += pat_len;
+        } else {
+            let c = text[pos..].chars().next().unwrap();
+            result.push(c);
+            pos += c.len_utf8();
+        }
     }
-
-    if let Some(pos) = unknown_names
-        .iter()
-        .position(|n| n.to_lowercase() == name_lower)
-    {
-        format!("henkilö {}", pos + 1)
-    } else {
-        unknown_names.push(name.to_string());
-        format!("henkilö {}", unknown_names.len())
-    }
+    result.push_str(&text[pos..]);
+    result
 }
 
 #[cfg(test)]
@@ -66,111 +39,88 @@ mod tests {
     use super::*;
 
     #[test]
-    fn no_tags_returns_text_unchanged() {
+    fn no_owner_name_in_text_returns_unchanged() {
         assert_eq!(
-            anonymize("Hello world.", "Matti Meikäläinen"),
-            "Hello world."
+            anonymize("No names here.", "Matti", "Meikäläinen"),
+            "No names here."
         );
     }
 
     #[test]
-    fn exact_owner_name_replaced_with_omistaja() {
+    fn firstname_lastname_replaced_with_omistaja() {
         assert_eq!(
-            anonymize("[NAME: Matti Meikäläinen] signed.", "Matti Meikäläinen"),
+            anonymize("Matti Meikäläinen signed.", "Matti", "Meikäläinen"),
             "Omistaja signed."
         );
     }
 
     #[test]
-    fn owner_name_match_is_case_insensitive() {
+    fn lastname_firstname_replaced_with_omistaja() {
         assert_eq!(
-            anonymize("[NAME: matti meikäläinen] signed.", "Matti Meikäläinen"),
+            anonymize("Meikäläinen Matti signed.", "Matti", "Meikäläinen"),
             "Omistaja signed."
         );
     }
 
     #[test]
-    fn owner_first_name_alone_replaced_with_omistaja_question() {
+    fn full_name_match_is_case_insensitive() {
         assert_eq!(
-            anonymize("Signed by [NAME: Matti].", "Matti Meikäläinen"),
+            anonymize("MATTI MEIKÄLÄINEN signed.", "Matti", "Meikäläinen"),
+            "Omistaja signed."
+        );
+    }
+
+    #[test]
+    fn firstname_alone_replaced_with_omistaja_question() {
+        assert_eq!(
+            anonymize("Signed by Matti.", "Matti", "Meikäläinen"),
             "Signed by Omistaja?."
         );
     }
 
     #[test]
-    fn owner_last_name_alone_replaced_with_omistaja_question() {
+    fn lastname_alone_replaced_with_omistaja_question() {
         assert_eq!(
-            anonymize("Signed by [NAME: Meikäläinen].", "Matti Meikäläinen"),
+            anonymize("Signed by Meikäläinen.", "Matti", "Meikäläinen"),
             "Signed by Omistaja?."
         );
     }
 
     #[test]
-    fn owner_token_match_is_case_insensitive() {
+    fn partial_match_is_case_insensitive() {
         assert_eq!(
-            anonymize("Signed by [NAME: MATTI].", "Matti Meikäläinen"),
+            anonymize("Signed by MATTI.", "Matti", "Meikäläinen"),
             "Signed by Omistaja?."
         );
     }
 
     #[test]
-    fn unknown_name_replaced_with_henkilo_1() {
+    fn multiple_occurrences_all_replaced() {
         assert_eq!(
-            anonymize("Contact [NAME: John Doe].", "Matti Meikäläinen"),
-            "Contact henkilö 1."
+            anonymize("Matti met Matti again.", "Matti", "Meikäläinen"),
+            "Omistaja? met Omistaja? again."
         );
     }
 
     #[test]
-    fn two_unknown_names_get_sequential_numbers() {
+    fn full_name_replaced_before_partials() {
         assert_eq!(
             anonymize(
-                "[NAME: John Doe] and [NAME: Jane Smith].",
-                "Matti Meikäläinen"
+                "Matti Meikäläinen said hello to Matti.",
+                "Matti",
+                "Meikäläinen"
             ),
-            "henkilö 1 and henkilö 2."
+            "Omistaja said hello to Omistaja?."
         );
     }
 
     #[test]
-    fn same_unknown_name_gets_same_number_throughout() {
+    fn newlines_preserved() {
         assert_eq!(
             anonymize(
-                "[NAME: John Doe] met [NAME: John Doe] again.",
-                "Matti Meikäläinen"
-            ),
-            "henkilö 1 met henkilö 1 again."
-        );
-    }
-
-    #[test]
-    fn mixed_owner_and_unknown_names() {
-        assert_eq!(
-            anonymize(
-                "[NAME: Matti Meikäläinen] called [NAME: John Doe].",
-                "Matti Meikäläinen"
-            ),
-            "Omistaja called henkilö 1."
-        );
-    }
-
-    #[test]
-    fn unknown_name_numbering_is_stable_across_multiple_occurrences() {
-        assert_eq!(
-            anonymize(
-                "[NAME: John Doe], [NAME: Jane Smith], [NAME: John Doe].",
-                "Matti Meikäläinen"
-            ),
-            "henkilö 1, henkilö 2, henkilö 1."
-        );
-    }
-
-    #[test]
-    fn surrounding_text_is_preserved_exactly() {
-        assert_eq!(
-            anonymize(
-                "Dear [NAME: Matti Meikäläinen],\nPlease sign.\nRegards",
-                "Matti Meikäläinen"
+                "Dear Matti Meikäläinen,\nPlease sign.\nRegards",
+                "Matti",
+                "Meikäläinen"
             ),
             "Dear Omistaja,\nPlease sign.\nRegards"
         );

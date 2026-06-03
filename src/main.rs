@@ -35,7 +35,7 @@ async fn run() -> Result<(), String> {
     }
 
     let joined = page_texts.join("\n\n---\n\n");
-    let clean = anonymize::anonymize(&joined, &secrets.owner_name);
+    let clean = anonymize::anonymize(&joined, &secrets.owner_firstname, &secrets.owner_lastname);
 
     let output_path = writer::write_output(&clean, &args.filename, Path::new(&*secrets.dest_dir))?;
 
