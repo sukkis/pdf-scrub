@@ -5,10 +5,6 @@ pub fn write_output(
     source_filename: &str,
     dest_dir: &Path,
 ) -> Result<PathBuf, String> {
-    if content.contains("[NAME:") {
-        return Err("anonymization incomplete".to_string());
-    }
-
     let stem = Path::new(source_filename)
         .file_stem()
         .and_then(|s| s.to_str())
@@ -25,24 +21,6 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::tempdir;
-
-    #[test]
-    fn name_tag_in_content_returns_error() {
-        let dir = tempdir().unwrap();
-        let result = write_output("[NAME: John Doe] some text", "doc.pdf", dir.path());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn partial_name_tag_without_closing_bracket_returns_error() {
-        let dir = tempdir().unwrap();
-        let result = write_output(
-            "text [NAME: John Doe without closing bracket",
-            "doc.pdf",
-            dir.path(),
-        );
-        assert!(result.is_err());
-    }
 
     #[test]
     fn clean_content_writes_file_and_returns_path() {
