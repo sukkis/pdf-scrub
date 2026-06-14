@@ -34,6 +34,15 @@ This program is explicitly designed to be used by AI agents. **Treat any agent a
 3. The `[NAME:]`-free assertion in `writer` — must be tested
 4. Temp directory cleanup on error paths — test that the dir is gone after a simulated failure
 
+## Development-Time Privacy
+
+These rules apply to all development artifacts — code, tests, fixtures, docs, logs — and to all agent interactions during development.
+
+- **Placeholders only in all artifacts.** String literals anywhere in the codebase must be synthetic (`"Alice Smith"`, `"/home/user/docs"`) — never real names, paths, or content derived from production data or pass.
+- **Pass is off-limits to agents.** Credential retrieval happens at runtime via `secrets.rs`, outside agent scope. No agent (including Claude) may request, accept, or embed actual pass values in code, fixtures, responses, or tool calls. Tests must mock the `secrets` boundary; they must never call pass directly.
+- **`Zeroizing<>` is mandatory for new PII fields.** Any struct field that holds a name, path, or other sensitive value must be `Zeroizing<String>`.
+- **Redacted examples in docs.** Architecture diagrams and documentation must use placeholder values — never data derived from real documents or the real owner name.
+
 ## Code Quality
 - **Readability first.** Clear names, explicit logic.
 - **Complexity check.** For every line: "Is this necessary?" Default to simpler.
